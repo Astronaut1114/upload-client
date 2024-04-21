@@ -29,19 +29,38 @@
     <el-icon :size="30" v-else><Files /></el-icon>
   </div>
 
-  <el-button>开始上传</el-button>
+  <el-button @click="handlerUpload">开始上传</el-button>
   <div draggable="true">拖拽</div>
 </template>
 
 <script setup>
 import { ElMessage } from "element-plus";
 import { reactive ,toRefs} from "vue";
+import axiosInstance from './api/index';
   const {isDragover , selectedFile} = toRefs(
     reactive({
       isDragover : false,
       selectedFile:{url:'',file:null,preView:[]}
     })
   )
+  const handlerUpload = ()=>{
+    if (!selectedFile.value.file) {
+    return ElMessage.warning("请先选择文件");
+  }
+  const file = selectedFile.value.file;
+  axiosInstance
+    .post(`/upload/${file.name}`, file, {
+      headers: {
+        "Content-Type": "application/octet-stream",
+      },
+    })
+    .then((res) => {
+      ElMessage.success("上传成功");
+    })
+    .catch((err) => {
+      ElMessage.error("上传失败");
+    });
+  }
   const handleDrop = (e)=>{
     e.preventDefault();
     const { files } = e.dataTransfer;
@@ -58,7 +77,7 @@ import { reactive ,toRefs} from "vue";
     }
   }
   const handleClick = (e)=>{
-    if(selectedFile.preView.length > 0 ) return;
+    if(selectedFile.preView?.length > 0 ) return;
     const input = document.createElement("input");
     input.type = "file";
     input.addEventListener("change", (e) => {
