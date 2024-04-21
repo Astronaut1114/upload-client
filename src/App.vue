@@ -7,8 +7,26 @@
     @dragover.prevent
     @dragenter.prevent="isDragover = true"
     @dragleave.prevent="isDragover = false"
-  >
-    <el-icon :size="30"><Files /></el-icon>
+  > 
+    <template v-if="selectedFile.url">
+      <el-image
+      style="width: 100px; height: 100px"
+      v-if="selectedFile.file.type.indexOf('image') > -1"
+      :src="selectedFile.url"
+      :zoom-rate="1.2"
+      :max-scale="7"
+      :min-scale="0.2"
+      :preview-src-list="selectedFile.preView"
+      :initial-index="4"
+      fit="cover"
+    />
+      <video
+        controls
+        v-if="selectedFile.file.type.indexOf('video') > -1"
+        :src="selectedFile.url"
+      ></video>
+    </template>
+    <el-icon :size="30" v-else><Files /></el-icon>
   </div>
 
   <el-button>开始上传</el-button>
@@ -16,23 +34,46 @@
 </template>
 
 <script setup>
+import { ElMessage } from "element-plus";
 import { reactive ,toRefs} from "vue";
-  const {isDragover} = toRefs(
+  const {isDragover , selectedFile} = toRefs(
     reactive({
       isDragover : false,
+      selectedFile:{url:'',file:null,preView:[]}
     })
   )
   const handleDrop = (e)=>{
     e.preventDefault();
     const { files } = e.dataTransfer;
     console.log("files: ", files);
+    if(files.length === 0) return;
+    const isMedia = files[0].type.indexOf("image") > -1 || files[0].type.indexOf('video')  > -1
+    if(!isMedia){
+      return ElMessage.warning('只能上传图片或者视频');
+    }
+    selectedFile.value = {
+      url:URL.createObjectURL(files[0]),
+      file:files[0],
+      preView:[URL.createObjectURL(files[0])]
+    }
   }
   const handleClick = (e)=>{
+    if(selectedFile.preView.length > 0 ) return;
     const input = document.createElement("input");
     input.type = "file";
     input.addEventListener("change", (e) => {
       const { files } = e.target;
       console.log("files: ", files);
+      if(files.length === 0) return;
+      const isMedia = files[0].type.indexOf("image") > -1 || files[0].type.indexOf('video')  > -1
+      if(!isMedia){
+        return ElMessage.warning('只能上传图片或者视频');
+      }
+      selectedFile.value = {
+        url:URL.createObjectURL(files[0]),
+        file:files[0],
+        preView:[URL.createObjectURL(files[0])]
+      }
     });
     input.click();
   }
