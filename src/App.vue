@@ -31,36 +31,90 @@
 
   <el-button @click="handlerUpload">开始上传</el-button>
   <div draggable="true">拖拽</div>
+  {{ Object.keys(progressInfo).length }}
+  <template v-if="Object.keys(progressInfo).length > 0">
+    <div class="progress" v-for="(percent, name) in progressInfo" :key="name">
+      <span>{{ name }}</span>
+      <el-progress :percentage="percent"></el-progress>
+    </div>
+  </template>
 </template>
 
 <script setup>
 import { ElMessage } from "element-plus";
 import { reactive ,toRefs} from "vue";
 import axiosInstance from './api/index';
-  const {isDragover , selectedFile} = toRefs(
+import getFilename from './getFilename';
+import createChunks from './createChunk'
+  const {isDragover , selectedFile,progressInfo} = toRefs(
     reactive({
       isDragover : false,
-      selectedFile:{url:'',file:null,preView:[]}
+      selectedFile:{url:'',file:null,preView:[]},
+      progressInfo:{
+        name: "",
+        percent: ''
+      }
     })
   )
-  const handlerUpload = ()=>{
-    if (!selectedFile.value.file) {
+  // const handlerUpload = async ()=>{
+  //   if (!selectedFile.value.file) {
+  //   return ElMessage.warning("请先选择文件");
+  // }
+  // const file = selectedFile.value.file;
+  // const fileName = await getFilename(file);
+  // const CHUNK_SIZE = 100 * 1024 * 1024;
+  // const chunks = createChunk(file,CHUNK_SIZE,fileName)
+  // console.log("chunkes:",chunks);
+  // const requests = chunks.map(chunkInfo=>{
+  //   return axiosInstance
+  //   .post(`/upload/${fileName}`, file, {
+  //     headers: {
+  //       "Content-Type": "application/octet-stream",
+  //     },
+  //     params:{
+  //       chunkFilename:chunkInfo.chunkFilename,
+  //     },
+  //     onUploadProgress(progressEvent) {
+  //       progressInfo.value[chunkInfo.chunkFilename] = Math.round(
+  //         (progressEvent.loaded * 100) / progressEvent.total
+  //       );
+  //     },
+  //   })
+  // })
+  // await Promise.all(requests);
+  // ElMessage.success('上传分片成功')
+  // }
+  const handlerUpload = async () => {
+  if (!selectedFile.value.file) {
     return ElMessage.warning("请先选择文件");
   }
   const file = selectedFile.value.file;
-  axiosInstance
-    .post(`/upload/${file.name}`, file, {
+
+  // 获取文件名
+  const filename = await getFilename(file);
+  const CHUNK_SIZE = 100 * 1024 * 1024;
+  // 创建分片
+  const chunks = createChunks(file, CHUNK_SIZE, filename);
+
+  // 批量上传分片
+  const requests = chunks.map((chunkInfo) => {
+    return axiosInstance.post(`/upload/${filename}`, chunkInfo.chunk, {
       headers: {
         "Content-Type": "application/octet-stream",
       },
-    })
-    .then((res) => {
-      ElMessage.success("上传成功");
-    })
-    .catch((err) => {
-      ElMessage.error("上传失败");
+      params: {
+        chunkFilename: chunkInfo.chunkFilename,
+      },
+      onUploadProgress(progressEvent) {
+        progressInfo.value[chunkInfo.chunkFilename] = Math.round(
+          (progressEvent.loaded * 100) / progressEvent.total
+        );
+      },
     });
-  }
+  });
+  await Promise.all(requests);
+  ElMessage.success("上传分片完成");
+};
   const handleDrop = (e)=>{
     e.preventDefault();
     const { files } = e.dataTransfer;
